@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "stdint.h": "c",
+        "dummy.h": "c",
+        "signal.h": "c"
+    }
+}
