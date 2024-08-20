@@ -2,6 +2,8 @@
     "files.associations": {
         "stdint.h": "c",
         "dummy.h": "c",
-        "signal.h": "c"
+        "signal.h": "c",
+        "util.h": "c",
+        "platform.h": "c"
     }
 }
