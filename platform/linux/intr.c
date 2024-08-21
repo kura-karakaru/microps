@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "net.h"
 #include "platform.h"
 #include "util.h"
 
@@ -96,6 +97,11 @@ static void *intr_thread(void *arg) {
                 terminate = 1;
                 break;
 
+            // ソフトウェア割り込み用のシグナル（SIGUSR1）を捕捉したらnet_softirq_handler()を呼ぶ
+            case SIGUSR1:
+                net_softirq_handler();
+                break;
+
             // デバイス割り込み用のシグナル
             default:
                 for (entry = irqs; entry;
@@ -157,5 +163,6 @@ int intr_init(void) {
                          2);  // pthread_barrierの初期化 カウントを2に
     sigemptyset(&sigmask);    // シグナル集合を初期化
     sigaddset(&sigmask, SIGHUP);  // シグナル集合にSIGHUPを追加
+    sigaddset(&sigmask, SIGUSR1);  // ソフトウェア割り込みのSIGUSR1を追加
     return 0;
 }

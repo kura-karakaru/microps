@@ -172,7 +172,7 @@ int net_input_handler(uint16_t type, const uint8_t *data, size_t len,
                 (3) キューに新しいエントリを挿入（失敗したらエラーを返す）
             */
 
-            entry = memory_alloc(sizeof(*entry));
+            entry = memory_alloc(sizeof(*entry) + len);
             if (!entry) {
                 errorf("memory_alloc() failure");
                 return -1;
@@ -183,7 +183,7 @@ int net_input_handler(uint16_t type, const uint8_t *data, size_t len,
             memcpy(entry->data, data, len);
 
             // エントリをキューへ格納
-            if (!queue_push(&PRIV(dev)->queue, entry)) {
+            if (!queue_push(&proto->queue, entry)) {
                 errorf("queue_push() failure");
                 return -1;
             }
@@ -191,10 +191,39 @@ int net_input_handler(uint16_t type, const uint8_t *data, size_t len,
             debugf("queue pushed (num:%u), dev=%s, type=0x%04x, len=%zu",
                    proto->queue.num, dev->name, type, len);
             debugdump(data, len);
+
+            // プロトコルの受信キューへエントリを追加した後、ソフトウェア割り込みを発生させる
+            intr_raise_irq(INTR_IRQ_SOFTIRQ);
+
             return 0;
         }
     }
     /* unsupported protocol */
+    return 0;
+}
+
+// ソフトウェア割り込み発生時に呼び出される関数
+int net_softirq_handler(void) {
+    struct net_protocol *proto;
+    struct net_protocol_queue_entry *entry;
+
+    // プロトコルリストを巡回（全てのプロトコルを確認）
+    for (proto = protocols; proto; proto = proto->next) {
+        while (1) {
+            entry = queue_pop(&proto->queue);  // 1つずつ取り出す
+            if (!entry) {
+                break;  // 最後まで行ったら(queueから未処理のエントリがなくなったら)ループを抜ける
+            }
+            debugf("queue popped (num:%u), dev=%s, type=0x%04x, len=%zu",
+                   proto->queue.num, entry->dev->name, proto->type, entry->len);
+            debugdump(entry->data, entry->len);
+
+            // プロトコルの入力関数
+            proto->handler(entry->data, entry->len, entry->dev);
+            // 使い終わったエントリのメモリを解放
+            memory_free(entry);
+        }
+    }
     return 0;
 }
 
